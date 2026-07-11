@@ -1,0 +1,26 @@
+# Local environment and secrets
+.env
+.env.*
+db.local.php
+config.local.php
+
+# Private database backups
+database/backups/
+*.sql.bak
+
+# Editor settings
+.vscode/
+.idea/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Archives, logs, and temporary files
+*.zip
+*.rar
+*.7z
+*.log
+*.tmp
+*~
