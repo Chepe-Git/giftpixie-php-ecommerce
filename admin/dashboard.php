@@ -38,6 +38,31 @@ $query = "SELECT o.id, o.order_date, o.total_amount, o.status, u.first_name, u.l
           ORDER BY o.order_date DESC 
           LIMIT 5";
 $recent_orders = mysqli_query($conn, $query);
+
+// Sales data for last 30 days - isolated here only in admin/dashboard.php
+// US-0007 AC-2: sales graph query isolated in this file
+$sales_query = "SELECT DATE(order_date) as date, SUM(total_amount) as total_sales 
+                FROM orders 
+                WHERE order_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) 
+                AND status != 'cancelled' 
+                GROUP BY DATE(order_date) 
+                ORDER BY DATE(order_date) ASC";
+$sales_result = mysqli_query($conn, $sales_query);
+
+$sales_data = [];
+while ($row = mysqli_fetch_assoc($sales_result)) {
+    $sales_data[$row['date']] = $row['total_sales'];
+}
+
+// Prepare data for last 30 days including days with zero sales
+$dates = [];
+$totals = [];
+for ($i = 29; $i >= 0; $i--) {
+    $date = date('Y-m-d', strtotime("-" . $i . " days"));
+    $dates[] = $date;
+    $totals[] = isset($sales_data[$date]) ? (float)$sales_data[$date] : 0;
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -221,7 +246,14 @@ $recent_orders = mysqli_query($conn, $query);
         .logout-btn:hover {
             background-color: rgba(255, 255, 255, 0.1);
         }
+        
+        /* Chart container */
+        #salesChart {
+            width: 100%;
+            height: 300px;
+        }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header class="admin-header">
@@ -264,6 +296,11 @@ $recent_orders = mysqli_query($conn, $query);
                 <h3>Total Revenue</h3>
                 <p>Rs. <?php echo number_format($stats['total_revenue'], 2); ?></p>
             </div>
+        </div>
+        
+        <div class="dashboard-section">
+            <h2 class="section-title">Sales in Last 30 Days</h2> <!-- US-0007 AC-1: sales graph only in admin/dashboard.php -->
+            <canvas id="salesChart"></canvas>
         </div>
         
         <div class="dashboard-section">
@@ -319,6 +356,57 @@ $recent_orders = mysqli_query($conn, $query);
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            const salesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: <?php echo json_encode($dates); ?>,
+                    datasets: [{
+                        label: 'Sales (Rs.)',
+                        data: <?php echo json_encode($totals); ?>,
+                        fill: true,
+                        backgroundColor: 'rgba(229, 57, 53, 0.2)',
+                        borderColor: 'rgba(229, 57, 53, 1)',
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                tooltipFormat: 'MMM d'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Sales (Rs.)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Rs. ' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
             console.log('Admin dashboard loaded');
         });
     </script>
